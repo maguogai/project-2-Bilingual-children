@@ -1,0 +1,999 @@
+---
+title: "code"
+author: "Jingyi Shi"
+date: "7/28/2020"
+output: pdf_document
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(readxl)
+#install.packages('mice')
+if(!require('mice')) install.packages('mice', repos = "http://cran.us.r-project.org")
+library(mice)
+#install.packages('VIM')
+if(!require('VIM')) install.packages('VIM', repos = "http://cran.us.r-project.org")
+library(VIM)
+#install.packages('Amelia' )
+if(!require('Amelia')) install.packages('Amelia', repos = "http://cran.us.r-project.org")
+library(Amelia)
+#install.packages(c("FactoMineR", "factoextra"))
+if(!require('FactoMineR')) install.packages('FactoMineR', repos = "http://cran.us.r-project.org")
+if(!require('factoextra')) install.packages('factoextra', repos = "http://cran.us.r-project.org")
+library("FactoMineR")
+library("factoextra")
+#install.packages("psych", type='binary')
+if(!require('psych')) install.packages('psych', repos = "http://cran.us.r-project.org",type ='binary' )
+library(psych)
+#install.packages("PerformanceAnalytics")
+if(!require('PerformanceAnalytics')) #install.packages('PerformanceAnalytics', repos = "http://cran.us.r-project.org")
+library(PerformanceAnalytics)
+library(ggplot2)
+#install.packages('GPArotation')
+if(!require('GPArotation')) install.packages('GPArotation', repos = "http://cran.us.r-project.org")
+library(GPArotation)
+library(caret)
+#install.packages('lmerTest')
+if(!require('lmerTest')) install.packages('lmerTest', repos = "http://cran.us.r-project.org")
+library(lmerTest)
+set.seed(1)
+```
+
+
+```{r}
+data <- read_excel('data/Raw Data.xlsx',sheet = 1, col_names = TRUE,na = "")
+data2 <- data %>%
+  rename(brief_raw_self_monitor='brief_raw_self-monitor')%>%
+  mutate(age=round(age_m/12,0))%>%
+  select(-part_no,-age_m)
+  
+data2$wasi_sum_rawscores[data2$wasi_sum_rawscores == 0] <-  NA
+data2[data2==888]<-NA
+data2$vocabprocess_processing_speed_target=round(data2$vocabprocess_processing_speed_target/1000,3)
+data2$tomi_basic=round(data2$tomi_basic,1)
+data2$et_figurestask_dwell_time_interacting=round(data2$et_figurestask_dwell_time_interacting/1000,3)
+data2$et_figurestask_dwell_time_not_interacting=round(data2$et_figurestask_dwell_time_not_interacting/1000,3)
+data2$et_falsebelief_Testtrial_dwell_time_to_correct=round(data2$et_falsebelief_Testtrial_dwell_time_to_correct/1000,3)
+data2$et_falsebelief_testtrial_dwell_time_to_incorrect=round(data2$et_falsebelief_testtrial_dwell_time_to_incorrect/1000,3)
+data2$et_falsebelief_testtrial_preference_score=round(data2$et_falsebelief_testtrial_preference_score/1000,3)
+data2$flanker_percenterrors_congruent=round(data2$flanker_percenterrors_congruent,1)
+data2$flanker_percenterrors_incongruent=round(data2$flanker_percenterrors_incongruent,1)
+data2$flanker_mean_rt_congruent=round(data2$flanker_mean_rt_congruent/1000,3)
+data2$flanker_mean_rt_incongruent=round(data2$flanker_mean_rt_incongruent/1000,3)
+data2$pvt_mean_rt=round(data2$pvt_mean_rt/1000,3)
+data2$pvt_mean_lapse_rt=round(data2$pvt_mean_lapse_rt/1000,3)
+
+lm=lm(tomi_compmean~ tomi_early+tomi_basic+tomi_advanced,data2)
+summary(lm)
+
+autistic <- data2%>%
+  filter(diagnosis==1)%>%
+  select(-diagnosis,-SCQ,-(bilec_home_input:bilec_english_output),-bilec_total_output)
+
+asd=data2%>%
+  filter(diagnosis==1)%>%
+  rename(BPVS=bpvs_raw,LPS_time=vocabprocess_processing_speed_target,TOMI=tomi_compmean,TOMTB=tom_tb_totalscore,Falsebelief=et_falsebelief_testtrial_preference_score,PVT=pvt_count_falsestarts)%>%
+  mutate(Figuretask=et_figurestask_dwell_time_interacting-et_figurestask_dwell_time_not_interacting,Flank_erro=(flanker_percenterrors_congruent+flanker_percenterrors_incongruent)/2,Flank_time=(flanker_mean_rt_congruent+flanker_mean_rt_incongruent)/2)
+asd$BRIEF=round(rowMeans(asd[,25:33]),0)
+asd
+asd=asd[,c(1,42,4:5,10,11,16,43,17,19,21,22,23,24,46,44,45,41)]
+aggr(asd,prop=F,numbers=T,combined=T,ylabs = ' ')
+
+nonautistic <- data2%>%
+  filter(diagnosis==0)%>%
+  select(-diagnosis,-(bilec_home_input:bilec_english_output),-bilec_total_output)
+
+td=data2%>%
+  filter(diagnosis==0)%>%
+  rename(BPVS=bpvs_raw,LPS_time=vocabprocess_processing_speed_target,TOMI=tomi_compmean,TOMTB=tom_tb_totalscore,Falsebelief=et_falsebelief_testtrial_preference_score,PVT=pvt_count_falsestarts)%>%
+  mutate(Figuretask=et_figurestask_dwell_time_interacting-et_figurestask_dwell_time_not_interacting,Flank_erro=(flanker_percenterrors_congruent+flanker_percenterrors_incongruent)/2,Flank_time=(flanker_mean_rt_congruent+flanker_mean_rt_incongruent)/2)
+td$BRIEF=round(rowMeans(td[,23:33]),0)
+td=td[,c(1,42,4:5,10,11,16,43,17,19,21,22,23,24,46,44,45,41)]
+aggr(td,prop=F,numbers=T,combined=T,ylabs = ' ')
+```
+
+```{r}
+a=asd%>%filter(is.na(BRIEF) )
+b=asd%>%filter(!is.na(BRIEF))
+t.test(a$gender,b$gender)
+t.test(a$age,b$age)
+t.test(a$age_acquisition,b$age_acquisition)
+t.test(a$where_english,b$where_english)
+t.test(a$bilec_total_input,b$bilec_total_input)
+t.test(a$bilec_total_output,b$bilec_total_output)
+```
+```{r}
+a=asd%>%filter(is.na(Flank_erro) )
+b=asd%>%filter(!is.na(Flank_erro))
+t.test(a$gender,b$gender)
+t.test(a$age,b$age)
+t.test(a$age_acquisition,b$age_acquisition)
+t.test(a$where_english,b$where_english)
+t.test(a$bilec_total_input,b$bilec_total_input)
+t.test(a$bilec_total_output,b$bilec_total_output)
+```
+```{r}
+a=asd%>%filter(is.na(PVT) )
+b=asd%>%filter(!is.na(PVT))
+t.test(a$gender,b$gender)
+t.test(a$age,b$age)
+t.test(a$age_acquisition,b$age_acquisition)
+t.test(a$where_english,b$where_english)
+t.test(a$bilec_total_input,b$bilec_total_input)
+t.test(a$bilec_total_output,b$bilec_total_output)
+```
+
+
+```{r}
+#2.2 fill in missingness
+cor.asd=data.frame(cor(autistic,use="pairwise.complete.obs"))
+cor.nonasd=data.frame(cor(nonautistic,use="pairwise.complete.obs"))
+#MI
+step1 = mice(autistic[,c(1:3,15:17,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(vocabprocess_processing_speed_target~ bpvs_raw,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$vocabprocess_processing_speed_target), 0, 1)
+autistic$vocabprocess_processing_speed_target <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$bpvs_raw,3)),
+                                                        autistic$vocabprocess_processing_speed_target)
+
+#MI
+step1 = mice(nonautistic[,c(1:4,15:17,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(vocabprocess_processing_speed_target~ bpvs_raw,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$vocabprocess_processing_speed_target), 0, 1)
+nonautistic$vocabprocess_processing_speed_target <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$bpvs_raw,3)),
+                                                        nonautistic$vocabprocess_processing_speed_target)
+```
+
+```{r}
+#
+step1 = mice(asd[,c(1:4,9:14)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(LPS_time~ BPVS,asd))
+step3 = pool(step2)
+summary(step3)
+asd$R <- ifelse(is.na(asd$LPS_time), 0, 1)
+asd$LPS_time <- ifelse(asd$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*asd$BPVS,3)),
+                                                        asd$LPS_time)
+
+step1 = mice(td[,c(1:4,9:14)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(LPS_time~ BPVS,td))
+step3 = pool(step2)
+summary(step3)
+td$R <- ifelse(is.na(td$LPS_time), 0, 1)
+td$LPS_time <- ifelse(td$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*td$BPVS,3)),td$LPS_time)
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:4,15:17,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(wasi_sum_rawscores~ bpvs_raw,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$wasi_sum_rawscores), 0, 1)
+autistic$wasi_sum_rawscores <- ifelse(autistic$R == 0,abs(round(summary(step3)$estimate[2]*autistic$bpvs_raw,0)),
+                                                        autistic$wasi_sum_rawscores)
+
+#nonautisi don't have missingness in IQ
+```
+
+```{r}
+#rnorm
+plot(density(autistic$tomi_early,na.rm = T))
+autistic$tomi_early<- ifelse(is.na(autistic$tomi_early),abs(round(rnorm(1,mean(autistic$tomi_early,na.rm = TRUE),sd(autistic$tomi_early,na.rm = TRUE)),1)),autistic$tomi_early)
+
+#MI
+step1 = mice(nonautistic[,c(1:8,16:18,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(tomi_early~wasi_sum_rawscores ,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$tomi_early), 0, 1)
+nonautistic$tomi_early <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$wasi_sum_rawscores,1)), nonautistic$tomi_early)
+
+#rnorm
+plot(density(asd$TOMI,na.rm = T))
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,15:17,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(tomi_basic~ tomi_early,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$tomi_basic), 0, 1)
+autistic$tomi_basic <- ifelse(autistic$R == 0,abs(round(summary(step3)$estimate[2]*autistic$tomi_early,1)),
+                                                        autistic$tomi_basic)
+#MI
+step1 = mice(nonautistic[,c(1:8,16:18,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(tomi_basic~tomi_early ,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$tomi_basic), 0, 1)
+nonautistic$tomi_basic <- ifelse(nonautistic$R == 0,abs(round(summary(step3)$estimate[2]*nonautistic$tomi_early,1)),nonautistic$tomi_basic)
+
+```
+```{r}
+#rnorm
+plot(density(autistic$tomi_advanced,na.rm = T))
+autistic$tomi_advanced<- ifelse(is.na(autistic$tomi_advanced),abs(round(rnorm(1,mean(autistic$tomi_advanced,na.rm = TRUE),sd(autistic$tomi_advanced,na.rm = TRUE)),1)),autistic$tomi_advanced)
+#MI
+step1 = mice(nonautistic[,c(1:8,16:18,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(tomi_advanced~tomi_basic ,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$tomi_advanced), 0, 1)
+nonautistic$tomi_advanced <- ifelse(nonautistic$R == 0,
+abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$tomi_basic,1)),
+                                                        nonautistic$tomi_advanced)
+
+```
+```{r}
+##8-tomi_compmean
+autistic$R <- ifelse(is.na(autistic$tomi_compmean), 0, 1)
+autistic$tomi_compmean <- ifelse(autistic$R == 0,
+                                                        round(0.2*autistic$tomi_early+0.4*autistic$tomi_basic+0.4*autistic$tomi_advanced,1),
+                                                        autistic$tomi_compmean)
+
+nonautistic$R <- ifelse(is.na(nonautistic$tomi_compmean), 0, 1)
+nonautistic$tomi_compmean <- ifelse(nonautistic$R == 0,
+                                                        round(0.2*nonautistic$tomi_early+0.4*nonautistic$tomi_basic+0.4*nonautistic$tomi_advanced,1),
+                                                        nonautistic$tomi_compmean)
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:8,15:17,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(tom_tb_totalscore~bpvs_raw,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$tom_tb_totalscore), 0, 1)
+autistic$tom_tb_totalscore <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$bpvs_raw,0)),
+                                                        autistic$tom_tb_totalscore)
+
+#nonautistic don't have misssingness
+```
+
+
+```{r}
+#rnorm
+plot(density(autistic$et_figurestask_dwell_time_interacting,na.rm = T))
+autistic$et_figurestask_dwell_time_interacting<- ifelse(is.na(autistic$et_figurestask_dwell_time_interacting),abs(round(rnorm(1,mean(autistic$et_figurestask_dwell_time_interacting,na.rm = TRUE),sd(autistic$et_figurestask_dwell_time_interacting,na.rm = TRUE)),3)),autistic$et_figurestask_dwell_time_interacting)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:18,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(et_figurestask_dwell_time_interacting~tomi_compmean ,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$et_figurestask_dwell_time_interacting), 0, 1)
+nonautistic$et_figurestask_dwell_time_interacting <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*nonautistic$tomi_compmean,3)),
+                                                        nonautistic$et_figurestask_dwell_time_interacting)
+```
+```{r}
+#rnorm
+plot(density(autistic$et_figurestask_dwell_time_not_interacting,na.rm = T))
+autistic$et_figurestask_dwell_time_not_interacting<- ifelse(is.na(autistic$et_figurestask_dwell_time_not_interacting),abs(round(rnorm(1,                                                                                      mean(autistic$et_figurestask_dwell_time_not_interacting,na.rm = TRUE),sd(autistic$et_figurestask_dwell_time_not_interacting,na.rm = TRUE)),3)),autistic$et_figurestask_dwell_time_not_interacting)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:18,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(et_figurestask_dwell_time_not_interacting~et_figurestask_dwell_time_interacting ,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$et_figurestask_dwell_time_not_interacting), 0, 1)
+nonautistic$et_figurestask_dwell_time_not_interacting <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$et_figurestask_dwell_time_interacting,3)),
+                                                        nonautistic$et_figurestask_dwell_time_not_interacting)
+```
+```{r}
+#rnorm
+plot(density(autistic$et_falsebelief_Testtrial_dwell_time_to_correct,na.rm = T))
+autistic$et_falsebelief_Testtrial_dwell_time_to_correct<- ifelse(is.na(autistic$et_falsebelief_Testtrial_dwell_time_to_correct),abs(round(rnorm(1,mean(autistic$et_falsebelief_Testtrial_dwell_time_to_correct,na.rm = TRUE),sd(autistic$et_falsebelief_Testtrial_dwell_time_to_correct,na.rm = TRUE)),3)),autistic$et_falsebelief_Testtrial_dwell_time_to_correct)
+
+#rnom
+plot(density(nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct,na.rm = T))
+nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct<- ifelse(is.na(nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct),abs(round(rnorm(1,mean(nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct,na.rm = TRUE),sd(nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct,na.rm = TRUE)),3)),nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct)
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:17,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(et_falsebelief_testtrial_dwell_time_to_incorrect~et_falsebelief_Testtrial_dwell_time_to_correct,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$et_falsebelief_testtrial_dwell_time_to_incorrect), 0, 1)
+autistic$et_falsebelief_testtrial_dwell_time_to_incorrect <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$et_falsebelief_Testtrial_dwell_time_to_correct,3)),
+                                                        autistic$et_falsebelief_testtrial_dwell_time_to_incorrect)
+#rnorm
+plot(density(nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect,na.rm = T))
+nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect<- ifelse(is.na(nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect),abs(round(rnorm(1,mean(nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect,na.rm = TRUE),sd(nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect,na.rm = TRUE)),3)),nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect)
+```
+```{r}
+#computition
+autistic$et_falsebelief_testtrial_preference_score<- ifelse(is.na(autistic$et_falsebelief_testtrial_preference_score),
+                                                        autistic$et_falsebelief_Testtrial_dwell_time_to_correct-
+                                                          autistic$et_falsebelief_testtrial_dwell_time_to_incorrect,
+                                                        autistic$et_falsebelief_testtrial_preference_score)
+
+#computition
+nonautistic$et_falsebelief_testtrial_preference_score<- ifelse(is.na(nonautistic$et_falsebelief_testtrial_preference_score),
+                                                        nonautistic$et_falsebelief_Testtrial_dwell_time_to_correct-
+                                                          nonautistic$et_falsebelief_testtrial_dwell_time_to_incorrect,
+                                                        nonautistic$et_falsebelief_testtrial_preference_score)
+
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_inhibit~tomi_compmean,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_inhibit), 0, 1)
+autistic$brief_raw_inhibit <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$tomi_compmean,0)),
+                                                        autistic$brief_raw_inhibit)
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_inhibit~tomi_compmean,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_inhibit), 0, 1)
+nonautistic$brief_raw_inhibit <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$tomi_compmean,0)),
+                                                        nonautistic$brief_raw_inhibit)
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_shift~ brief_raw_inhibit,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_shift), 0, 1)
+autistic$brief_raw_shift <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$brief_raw_inhibit,0)),
+                                                        autistic$brief_raw_shift)
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_shift~brief_raw_inhibit,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_shift), 0, 1)
+nonautistic$brief_raw_shift <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$brief_raw_inhibit,0)),
+                                        nonautistic$brief_raw_shift)
+ 
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_emotional_control~ brief_raw_shift,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_emotional_control), 0, 1)
+autistic$brief_raw_emotional_control <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*autistic$brief_raw_shift,0)),
+                                                        autistic$brief_raw_emotional_control)
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_emotional_control~brief_raw_shift,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_emotional_control), 0, 1)
+nonautistic$brief_raw_emotional_control <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*nonautistic$brief_raw_shift,0)),
+                                        nonautistic$brief_raw_emotional_control)
+
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_initiate~brief_raw_emotional_control,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_initiate), 0, 1)
+autistic$brief_raw_initiate <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$brief_raw_emotional_control,0)),
+                                                        autistic$brief_raw_initiate)
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_initiate~brief_raw_emotional_control,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_initiate), 0, 1)
+nonautistic$brief_raw_initiate <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$brief_raw_emotional_control,0)),
+                                        nonautistic$brief_raw_initiate)
+
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_working_memory~ brief_raw_inhibit,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_working_memory), 0, 1)
+
+autistic$brief_raw_working_memory <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$brief_raw_inhibit,0)),
+                                                        autistic$brief_raw_working_memory)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_working_memory~brief_raw_inhibit,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_working_memory), 0, 1)
+nonautistic$brief_raw_working_memory <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$brief_raw_inhibit,0)),
+                                        nonautistic$brief_raw_working_memory)
+
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_plan_organise~ brief_raw_working_memory,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_plan_organise), 0, 1)
+
+autistic$brief_raw_plan_organise <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$brief_raw_working_memory,0)),
+                                                        autistic$brief_raw_plan_organise)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_plan_organise~brief_raw_working_memory,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_plan_organise), 0, 1)
+nonautistic$brief_raw_plan_organise <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$brief_raw_working_memory,0)),
+                                        nonautistic$brief_raw_plan_organise)
+
+```
+
+
+
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_task_monitor~ brief_raw_plan_organise,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_task_monitor), 0, 1)
+
+autistic$brief_raw_task_monitor <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*autistic$brief_raw_plan_organise,0)),
+                                                        autistic$brief_raw_task_monitor)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_task_monitor~brief_raw_plan_organise,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_task_monitor), 0, 1)
+nonautistic$brief_raw_task_monitor <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*nonautistic$brief_raw_plan_organise,0)),
+                                        nonautistic$brief_raw_task_monitor)
+
+```
+
+
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_self_monitor~ brief_raw_task_monitor,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_self_monitor), 0, 1)
+
+autistic$brief_raw_self_monitor <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$brief_raw_task_monitor,0)),
+                                                        autistic$brief_raw_self_monitor)
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_self_monitor~brief_raw_inhibit,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_self_monitor), 0, 1)
+nonautistic$brief_raw_self_monitor <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$brief_raw_inhibit,0)),
+                                        nonautistic$brief_raw_self_monitor)
+
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_organisation_of_materials~ brief_raw_working_memory,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$brief_raw_organisation_of_materials), 0, 1)
+
+autistic$brief_raw_organisation_of_materials <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$brief_raw_working_memory,0)),
+                                                        autistic$brief_raw_organisation_of_materials)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:27,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(brief_raw_organisation_of_materials~brief_raw_working_memory,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$brief_raw_organisation_of_materials), 0, 1)
+nonautistic$brief_raw_organisation_of_materials <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*nonautistic$brief_raw_working_memory,0)),
+                                        nonautistic$brief_raw_organisation_of_materials)
+
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:28,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_percenterrors_congruent~ wasi_sum_rawscores,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$flanker_percenterrors_congruent), 0, 1)
+
+autistic$flanker_percenterrors_congruent <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$wasi_sum_rawscores,1)),
+                                                        autistic$flanker_percenterrors_congruent)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:31,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_percenterrors_congruent~wasi_sum_rawscores,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$flanker_percenterrors_congruent), 0, 1)
+nonautistic$flanker_percenterrors_congruent <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$wasi_sum_rawscores,1)),
+                                        nonautistic$flanker_percenterrors_congruent)
+
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:28,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_percenterrors_incongruent~flanker_percenterrors_congruent,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$flanker_percenterrors_incongruent), 0, 1)
+
+autistic$flanker_percenterrors_incongruent <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$flanker_percenterrors_congruent,1)),
+                                                        autistic$flanker_percenterrors_incongruent)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:31,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_percenterrors_incongruent~wasi_sum_rawscores,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$flanker_percenterrors_incongruent), 0, 1)
+nonautistic$flanker_percenterrors_incongruent <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$wasi_sum_rawscores,1)),
+                                        nonautistic$flanker_percenterrors_incongruent)
+
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,29,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_mean_rt_congruent~flanker_percenterrors_congruent,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$flanker_mean_rt_congruent), 0, 1)
+
+autistic$flanker_mean_rt_congruent <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$flanker_percenterrors_congruent,3)),
+                                                        autistic$flanker_mean_rt_congruent)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:33,36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_mean_rt_congruent~flanker_percenterrors_congruent,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$flanker_mean_rt_congruent), 0, 1)
+nonautistic$flanker_mean_rt_congruent <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$flanker_percenterrors_congruent,3)),
+                                        nonautistic$flanker_mean_rt_congruent)
+
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,15:26,28,30,35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_mean_rt_incongruent~flanker_mean_rt_congruent,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$flanker_mean_rt_incongruent), 0, 1)
+
+autistic$flanker_mean_rt_incongruent <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*autistic$flanker_mean_rt_congruent,3)),
+                                                        autistic$flanker_mean_rt_incongruent)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(flanker_mean_rt_incongruent~flanker_mean_rt_congruent,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$flanker_mean_rt_incongruent), 0, 1)
+nonautistic$flanker_mean_rt_incongruent <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*nonautistic$flanker_mean_rt_congruent,3)),
+                                        nonautistic$flanker_mean_rt_incongruent)
+
+```
+
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,31:35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_mean_rt~flanker_mean_rt_congruent,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$pvt_mean_rt), 0, 1)
+
+autistic$pvt_mean_rt <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$flanker_mean_rt_congruent,0)),
+                                                        autistic$pvt_mean_rt)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_mean_rt~flanker_mean_rt_congruent,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$pvt_mean_rt), 0, 1)
+nonautistic$pvt_mean_rt <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*nonautistic$flanker_mean_rt_congruent,3)),
+                                        nonautistic$pvt_mean_rt)
+
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,31:35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_number_of_lapses~flanker_mean_rt_congruent,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$pvt_number_of_lapses), 0, 1)
+
+autistic$pvt_number_of_lapses <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[2]*autistic$flanker_mean_rt_congruent,0)),
+                                                        autistic$pvt_number_of_lapses)
+
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_number_of_lapses~flanker_mean_rt_congruent,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$pvt_number_of_lapses), 0, 1)
+nonautistic$pvt_number_of_lapses <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$flanker_mean_rt_congruent,0)),
+                                        nonautistic$pvt_number_of_lapses)
+
+```
+```{r}
+#MI
+step1 = mice(autistic[,c(1:7,9:13,31:35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_mean_lapse_rt~pvt_mean_rt,autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$pvt_mean_lapse_rt), 0, 1)
+
+autistic$pvt_mean_lapse_rt <- ifelse(autistic$R == 0,abs(round(summary(step3)$estimate[2]*autistic$pvt_mean_rt,3)),
+                                                        autistic$pvt_mean_lapse_rt)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_mean_lapse_rt~pvt_mean_rt,nonautistic))
+step3 = pool(step2)
+summary(step3)
+nonautistic$R <- ifelse(is.na(nonautistic$pvt_mean_lapse_rt), 0, 1)
+nonautistic$pvt_mean_lapse_rt <- ifelse(nonautistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*nonautistic$pvt_mean_rt,0)),
+                                        nonautistic$pvt_mean_lapse_rt)
+
+```
+```{r}
+
+#MI
+step1 = mice(autistic[,c(1:7,9:13,31:35)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_count_falsestarts~poly(pvt_mean_lapse_rt,2),autistic))
+step3 = pool(step2)
+summary(step3)
+autistic$R <- ifelse(is.na(autistic$pvt_count_falsestarts), 0, 1)
+
+autistic$pvt_count_falsestarts <- ifelse(autistic$R == 0,
+                                                        abs(round(summary(step3)$estimate[1]+summary(step3)$estimate[2]*autistic$pvt_mean_lapse_rt+summary(step3)$estimate[3]*autistic$pvt_mean_lapse_rt^2,0)),
+                                                        autistic$pvt_count_falsestarts)
+
+#MI
+step1 = mice(nonautistic[,c(1:14,16:36)], method = "norm.nob", m = 5, print = FALSE, seed = 1)
+step2 = with(step1, lm(pvt_count_falsestarts~pvt_mean_lapse_rt,nonautistic))
+step3 = pool(step2)
+summary(step3)
+summary(step3)$std.err[1]
+nonautistic$R <- ifelse(is.na(nonautistic$pvt_count_falsestarts), 0, 1)
+nonautistic$pvt_count_falsestarts <- ifelse(nonautistic$R ==0,
+                                        abs(round(summary(step3)$estimate[1]+rnorm(1,0,summary(step3)$std.err[1]),0)),
+                                        nonautistic$pvt_count_falsestarts)
+
+```
+
+
+
+```{r}
+final.autistic=autistic%>%select(-R)
+final.nonautistic=nonautistic%>%select(-R)
+```
+
+```{r}
+autistic=final.autistic
+nonautistic=final.nonautistic
+```
+
+```{r}
+a=final.autistic%>%
+  rename(BPVS=bpvs_raw,LPS_time=vocabprocess_processing_speed_target,TOMI=tomi_compmean,TOMTB=tom_tb_totalscore,Falsebelief=et_falsebelief_testtrial_preference_score,PVT=pvt_count_falsestarts)%>%
+  mutate(Figuretask=et_figurestask_dwell_time_interacting-et_figurestask_dwell_time_not_interacting,Flank_erro=(flanker_percenterrors_congruent+flanker_percenterrors_incongruent)/2,Flank_time=(flanker_mean_rt_congruent+flanker_mean_rt_incongruent)/2)
+a$BRIEF=round(rowMeans(a[,18:26]),0)
+
+a=a[,c(2,3,8,9,14,36,39,37,38,34)]
+b=final.nonautistic%>%
+  rename(BPVS=bpvs_raw,LPS_time=vocabprocess_processing_speed_target,TOMI=tomi_compmean,TOMTB=tom_tb_totalscore,Falsebelief=et_falsebelief_testtrial_preference_score,PVT=pvt_count_falsestarts)%>%
+  mutate(Figuretask=et_figurestask_dwell_time_interacting-et_figurestask_dwell_time_not_interacting,Flank_erro=(flanker_percenterrors_congruent+flanker_percenterrors_incongruent)/2,Flank_time=(flanker_mean_rt_congruent+flanker_mean_rt_incongruent)/2)%>%
+  select(-SCQ)
+b$BRIEF=round(rowMeans(b[,18:26]),0)
+b=b[,c(2,3,8,9,14,36,39,37,38,34)]
+```
+
+```{r}
+var.test(a$BPVS,b$BPVS)
+t.test(a$BPVS,b$BPVS,var.equal = F)
+sd(a$BPVS);sd(b$BPVS)
+
+var.test(a$LPS_time,b$LPS_time)
+t.test(a$LPS_time,b$LPS_time)
+sd(a$LPS_time);sd(b$LPS_time)
+
+var.test(a$TOMI,b$TOMI)
+t.test(a$TOMI,b$TOMI,var.equal = F)
+sd(a$TOMI);sd(b$TOMI)
+
+var.test(a$TOMTB,b$TOMTB)
+t.test(a$TOMTB,b$TOMTB,var.equal = F)
+sd(a$TOMTB);sd(b$TOMTB)
+
+var.test(a$Falsebelief,b$Falsebelief)
+t.test(a$Falsebelief,b$Falsebelief)
+sd(a$Falsebelief);sd(b$Falsebelief)
+
+var.test(a$Figuretask,b$Figuretask)
+t.test(a$Figuretask,b$Figuretask)
+sd(a$Figuretask);sd(b$Figuretask)
+
+var.test(a$BRIEF,b$Figuretask)
+t.test(a$BRIEF,b$Figuretask,var.equal = F)
+sd(a$BRIEF);sd(b$Figuretask)
+
+var.test(a$Flank_erro,b$Flank_erro)
+t.test(a$Flank_erro,b$Flank_erro,var.equal = F)
+sd(a$Flank_erro);sd(b$Flank_erro)
+
+var.test(a$Flank_time,b$Flank_time)
+t.test(a$Flank_time,b$Flank_time)
+sd(a$Flank_time);sd(b$Flank_time)
+
+var.test(a$PVT,b$PVT)
+t.test(a$PVT,b$PVT,var.equal = F)
+sd(a$PVT);sd(b$PVT)
+
+```
+
+```{r}
+#language 
+fa.parallel(autistic[,2:3],fa="fa",n.iter = 100,show.legend = T,main="Scree plot with parallel analysis",ylabel="Eigenvalues")
+abline(1,0)
+fa.parallel(nonautistic[,3:4],fa="fa",n.iter = 100,show.legend = T,main="Scree plot with parallel analysis",ylabel="Eigenvalues")
+abline(1,0)
+```
+
+
+```{r}
+#language FA
+fa(autistic[,2:3], nfactors =1, rotate = "varimax",fm = "pa",scores = TRUE)
+fa(autistic[,2:3], nfactors =1, rotate = "varimax",fm = "pa",scores = TRUE)$weights
+#PA1=0.49bpvs_raw-0.493vocabprocess
+autistic$language.fa=-fa(autistic[,2:3], nfactors =1, rotate = "varimax",fm = "pa",scores = TRUE)$scores[,1]
+
+fa(nonautistic[,3:4], nfactors =1, rotate = "varimax",fm = "pa",scores = TRUE)
+nonautistic$language.fa=-fa(nonautistic[,3:4], nfactors =1, rotate = "varimax",fm = "pa",scores = TRUE)$scores[,1]
+```
+
+```{r}
+#social FA
+#fm="ml" will do a maximum likelihood factor analysis.
+autistic$et_figurestask_interacting_preference=autistic$et_figurestask_dwell_time_interacting-autistic$et_figurestask_dwell_time_not_interacting
+fa(autistic[,c(8,9,14,37)], nfactors =3, rotate = "varimax",fm = "ml",scores = T, SMC=1)
+#fa(autistic[,c(5:8,9,14,37)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)
+
+nonautistic$et_figurestask_interacting_preference=nonautistic$et_figurestask_dwell_time_interacting-nonautistic$et_figurestask_dwell_time_not_interacting
+fa(nonautistic[,c(9,10,15,38)], nfactors =3, rotate = "varimax",fm = "ml",scores = T, SMC=1)
+```
+
+```{r}
+autistic$social.TOM=fa(autistic[,c(5:8,9,14,37)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,3]
+autistic$social.FBT=fa(autistic[,c(5:8,9,14,37)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,1]
+autistic$social.interaction=fa(autistic[,c(5:8,9,14,37)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,2]
+
+nonautistic$social.TOM=fa(nonautistic[,c(9,10,15,38)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,3]
+nonautistic$social.FBT=fa(nonautistic[,c(9,10,15,38)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,2]
+nonautistic$social.interaction=fa(nonautistic[,c(9,10,15,38)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,1]
+```
+
+```{r}
+# executive function FA
+autistic$brief_raw=round(rowMeans(autistic[,18:26]),0)
+autistic$flanker_percenterror=round(rowMeans(autistic[,27:28]),1)
+autistic$flanker_mean_rt=round(rowMeans(autistic[,29:30]),3)
+fa(autistic[,c(34,41:43)], nfactors =3, rotate = "varimax",fm = "ml",scores = T, SMC=1)
+
+nonautistic$brief_raw=round(rowMeans(nonautistic[,19:27]),0)
+nonautistic$flanker_percenterror=round(rowMeans(nonautistic[,28:29]),1)
+nonautistic$flanker_mean_rt=round(rowMeans(nonautistic[,30:31]),3)
+fa(nonautistic[,c(35,42:44)], nfactors =3, rotate = "varimax",fm = "ml",scores = T, SMC=1)
+```
+```{r}
+autistic$ef.Brief=fa(autistic[,c(34,41:43)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,1]
+autistic$ef.Flanker=fa(autistic[,c(34,41:43)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,3]
+autistic$ef.PVT=fa(autistic[,c(34,41:43)], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,2]
+
+nonautistic$ef.Brief=fa(nonautistic[,19:27], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,1]
+nonautistic$ef.Flanker=fa(nonautistic[,19:27], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,3]
+nonautistic$ef.PVT=fa(nonautistic[,19:27], nfactors =3, rotate = "varimax",fm = "ml",scores = TRUE)$scores[,2]
+```
+
+
+```{r}
+new.autistic=cbind(autistic,data2%>%filter(diagnosis==1)%>%select(bilec_home_input,bilec_home_output,bilec_total_output))
+
+fa(new.autistic[,c(15,47:49)], nfactors =2, rotate = "varimax",fm = "pa",scores = T)
+
+new.autistic$input=fa(new.autistic[,c(15,47:49)], nfactors =2, rotate = "varimax",fm = "pa",scores = T)$scores[,2]
+new.autistic$output=fa(new.autistic[,c(15,47:49)], nfactors =2, rotate = "varimax",fm = "pa",scores = T)$scores[,1]
+
+new.nonautistic=cbind(nonautistic,data2%>%filter(diagnosis==0)%>%select(bilec_home_input,bilec_home_output,bilec_total_output))
+
+fa(new.nonautistic[,c(16,48:50)], nfactors =2, rotate = "varimax",fm = "ml",scores = T)
+
+new.nonautistic$total=fa(new.nonautistic[,c(15,47:48)], nfactors =2, rotate = "varimax",fm = "ml",scores = T)$scores[,2]
+new.nonautistic$nonenglish=fa(new.nonautistic[,c(15,47:48)], nfactors =2, rotate = "varimax",fm = "ml",scores = T)$scores[,1]
+```
+```{r}
+#assessment variance
+new.nonautistic=new.nonautistic%>%select(-SCQ)
+```
+```{r}
+type=rbind(new.autistic[,c(2:3,5:14,18:34)],new.nonautistic[,c(2:3,5:14,18:34)])
+type=predict(preProcess(type,method='range'),type)
+predict(preProcess(type,method='scale'),type)
+type=predict(preProcess(type),type)
+type
+```
+
+```{r}
+#social cognition assessment type
+#tomi (parents report) vs. tomtb (assessment) 
+type=rbind(new.autistic[,8:9],new.nonautistic[,8:9])
+type$tom_tb_totalscore=round(20*type$tom_tb_totalscore/15,1)
+type
+social=data.frame(
+  response=c(type[1:38,1],type[1:38,2]),
+  type=factor(c(rep("parent report",38),rep("direct assessment",38)))
+)
+summary(aov(response~type,social))
+bwplot(response~type,social,ylab='Theory of Mind score')
+
+social=data.frame(
+  response=c(type[39:89,1],type[39:89,2]),
+  type=factor(c(rep("parent report",51),rep("direct assessment",51)))
+)
+summary(aov(response~type,social))
+bwplot(response~type,social,ylab='Theory of Mind score')
+```
+
+```{r}
+#language ~ bilingualism
+#gender wasi age_acquisition  where_english age language.fa
+ggplot(new.autistic, aes(x=input, y=language.fa))+
+  geom_point()
+
+plot=new.autistic%>%filter(language.fa>-0.5)
+ggplot(plot, aes(x=input, y=language.fa))+
+  geom_point()+
+  geom_smooth(method='lm',formula=y~poly(x,4))+
+  labs(x = 'Bilingual input', y = 'Vocabulary')
+
+fit <- lm(language.fa~poly(input,4),plot)
+summary(fit)
+par(mfrow=c(2,2))
+plot(fit)
+```
+
+
+```{r}
+#social ~ biligualism
+
+plot=new.autistic%>%filter(social.interaction>-1 &social.interaction<1.5)%>%filter(gender==0 &input<0 | gender==1 & input>-0.5)
+ggplot(plot,aes(x=input,y=social.interaction,color=as.factor(gender)))+
+  geom_point()+
+  geom_smooth(method='lm',formula=y~x)+
+  labs(x = 'Bilingual input', y = 'Social interaction preference')+
+  scale_color_discrete(name="gender",labels = c('Male','Female'))
+
+fit <- lm(social.interaction~input,plot%>%filter(gender==0 & input <0))
+summary(fit)
+par(mfrow=c(2,2))
+plot(fit)
+
+fit <- lm(social.interaction~input,plot%>%filter(gender==1 & input >-0.5))
+summary(fit)
+par(mfrow=c(2,2))
+plot(fit)
+
+lmer(social.interaction ~ input + (1|gender),plot)
+summary(lmer(social.interaction ~ input + (1|gender),plot))
+anova(lmer(social.interaction ~ input + (1|gender),plot))
+ranova(lmer(social.interaction ~ input + (1|gender),plot))
+```
+
+```{r}
+#executive function ~ biligualism
+
+#chart.Correlation(new[,c(1,4,16,17,35,44:46,49)], method = "pearson")
+plot=new.autistic%>%filter(ef.Brief>-1&ef.Brief<1.4)
+ggplot(plot,aes(x=input,y=ef.Brief))+
+  geom_point()+
+  geom_smooth(method='lm',formula=y~poly(x,3))+
+  labs(x = 'Bilingual input', y = 'Behavior performance of executive function')
+
+fit <- lm(ef.Brief~poly(input,3),plot)
+summary(fit)
+par(mfrow=c(2,2))
+plot(fit)
+```
+
+
+```{r}
+#language ~ social cognition
+#chart.Correlation(autistic[,c(38:40,36)], method = "pearson")
+ggplot(autistic,aes(x=social.FBT,y=language.fa))+
+  geom_point()
+```
+
+```{r}
+#language ~ ef
+chart.Correlation(autistic[,c(44,45,46,36)], method = "pearson")
+ggplot(autistic,aes(x=ef.Flanker,y=language.fa))+
+  geom_point()
+
+```
+
+```{r}
+#social cognition ~ef
+chart.Correlation(autistic[,c(38:40,44,45,46)], method = "pearson")
+ggplot(autistic,aes(x=ef.Flanker,y=social.FBT))+
+  geom_point()
+ggplot(autistic,aes(x=ef.PVT,y=social.FBT))+
+  geom_point()
+
+```
+
+
